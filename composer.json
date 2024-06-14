@@ -1,5 +1,5 @@
 {
-  "name": "frank-houweling/weighted-random",
+  "name": "mschandr/weighted-random",
   "description": "Library for generating a weighted random sample",
   "type": "library",
   "license": "MIT",
@@ -9,7 +9,7 @@
     "random",
     "sampling"
   ],
-  "minimum-stability": "dev",
+  "minimum-stability": "1.2",
   "prefer-stable": true,
   "require": {
     "php": "^8.3",
@@ -17,7 +17,7 @@
   },
   "autoload": {
     "psr-4": {
-      "FrankHouweling\\WeightedRandom\\": "lib/"
+      "mschandr\\WeightedRandom\\": "lib/"
     }
   },
   "require-dev": {

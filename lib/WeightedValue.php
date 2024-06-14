@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace FrankHouweling\WeightedRandom;
+namespace mschandr\WeightedRandom;
 
 /**
  * Class WeightedValue
