@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-use FrankHouweling\WeightedRandom\WeightedRandomGenerator;
-use FrankHouweling\WeightedRandom\WeightedValue;
+use mschandr\WeightedRandom\WeightedRandomGenerator;
+use mschandr\WeightedRandom\WeightedValue;
 use PHPUnit\Framework\TestCase;
 
 /**
