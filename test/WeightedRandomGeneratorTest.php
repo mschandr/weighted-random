@@ -38,10 +38,12 @@ final class WeightedRandomGeneratorTest extends TestCase
         ];
 
         // Mock random number generator to return 1,2,3,4
-        $mockRandomNumberGenerator = $this->createPartialMock(\stdClass::class, ['__invoke']);
+        $mockRandomNumberGenerator = $this->getMockBuilder(\stdClass::class)
+                ->addMethods(['__invoke'])
+                ->getMock();
+
         $mockRandomNumberGenerator->method('__invoke')
-            ->withAnyParameters()
-            ->will($this->onConsecutiveCalls(...range(1,count($values))));
+                ->will($this->onConsecutiveCalls(...range(1, count($values))));
 
         $this->generator->setRandomNumberGenerator($mockRandomNumberGenerator);
 
@@ -168,10 +170,12 @@ final class WeightedRandomGeneratorTest extends TestCase
         $this->generator->registerValues($registeredValues);
 
         // Mock random number generator to return the first item twice, then return items two and three.
-        $mockRandomNumberGenerator = $this->createPartialMock(\stdClass::class, ['__invoke']);
+        $mockRandomNumberGenerator = $this->getMockBuilder(\stdClass::class)
+                ->addMethods(['__invoke'])
+                ->getMock();
+
         $mockRandomNumberGenerator->method('__invoke')
-            ->withAnyParameters()
-            ->will($this->onConsecutiveCalls(1,1,2,3));
+                ->will($this->onConsecutiveCalls(1, 1, 2, 3));
 
         $this->generator->setRandomNumberGenerator($mockRandomNumberGenerator);
 
