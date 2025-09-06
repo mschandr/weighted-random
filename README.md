@@ -4,7 +4,7 @@
 [![Latest Stable Version](https://img.shields.io/packagist/v/mschandr/weighted-random.svg)](https://packagist.org/packages/mschandr/weighted-random)
 [![License](https://img.shields.io/github/license/mschandr/weighted-random.svg)](LICENSE)
 
-This library is used to pick random values from a set of registered values, where values with a higher 
+This library is used to pick random values from a set of registered values, where values with a higher
 weight have a larger probability to be picked.
 
 ---
@@ -21,7 +21,6 @@ composer require mschandr/weighted-random
 Using this library is simple: instantiate the `WeightedRandomGenerator`, register values, and start generating random values.
 
 ```php
-
 <?php
 use mschandr\WeightedRandom\WeightedRandomGenerator;
 
@@ -54,7 +53,6 @@ $generator->registerValue('foobar', 1);
 // Throws \InvalidArgumentException (weight must be > 0)
 $generator->registerValue('foobar', 0);
 ```
-
 Register multiple values at once with `registerValues()`:
 
 ```php
@@ -138,3 +136,15 @@ foreach ($generator->generateMultipleWithoutDuplicates(2) as $value) {
 ```
 
 **Note**: Trying to generate more unique values than registered will throw an `\InvalidArgumentException`.
+
+# Roadmap
+
+1. Floats + Normalization
+2. Validation Enhancements
+3. Chaining API
+4. Groups
+5. Seeded RNG
+6. Distribution Introspection
+7. Bag System
+8. Decay/Boost
+9. Composite Generators
