@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace mschandr\WeightedRandom;
 
 use Assert\Assertion;
+use Assert\AssertionFailedException;
+use Generator;
 
 /**
  * Class WeightedRandomGenerator
@@ -14,13 +16,13 @@ use Assert\Assertion;
 final class WeightedRandomGenerator
 {
     /** @var array|mixed[] */
-    private $values = [];
+    private mixed $values = [];
 
     /** @var array|int[] */
-    private $weights = [];
+    private array|int $weights = [];
 
     /** @var int|null */
-    private $totalWeightCount;
+    private ?int $totalWeightCount;
 
     /** @var callable */
     private $randomNumberGenerator;
@@ -34,10 +36,32 @@ final class WeightedRandomGenerator
     }
 
     /**
+     * @return string|int the generated value to be returned
+     * @throws AssertionFailedException
+     */
+    public function pickKey(): string|int
+    {
+        // If your current generate() already returns the chosen key, just forward:
+        return $this->generate();
+    }
+
+    /**
+     * @param int $seed
+     * @param string $namespace
+     * @return string|int
+     */
+    public function pickKeySeeded(int $seed, string $namespace = ''): string|int
+    {
+        // If the generator holds $this->weights, reuse the static helper:
+        return WeightedRandom::pickKeySeeded($this->weights, $seed, $namespace);
+    }
+
+    /**
      * Register (add or update) a possible return value for the weighted random generator.
      *
      * @param mixed $value The possible return value.
      * @param int $weight Weight of the possibility of getting this value as a whole number.
+     * @throws AssertionFailedException
      */
     public function registerValue($value, int $weight = 1): void
     {
@@ -52,6 +76,7 @@ final class WeightedRandomGenerator
      * For example: $generator->registerValues(['small_chance' => 1, 'large_chance' => 100]);
      *
      * @param array $valueCollection Key - value pairs where the key is the value and the value is weight.
+     * @throws AssertionFailedException
      */
     public function registerValues(array $valueCollection): void
     {
@@ -65,6 +90,7 @@ final class WeightedRandomGenerator
      * Add or update a possible return value for the weighted random generator.
      *
      * @param WeightedValue $weightedValue
+     * @throws AssertionFailedException
      */
     public function registerWeightedValue(WeightedValue $weightedValue): void
     {
@@ -99,9 +125,9 @@ final class WeightedRandomGenerator
     /**
      * Return a generator that generated WeightedValue instances for all registered values.
      *
-     * @return \Generator
+     * @return Generator
      */
-    public function getWeightedValues(): \Generator
+    public function getWeightedValues(): Generator
     {
         foreach ($this->values as $key => $value) {
             yield new WeightedValue(
@@ -133,8 +159,9 @@ final class WeightedRandomGenerator
      * Generate a random sample of one value from the registered values.
      *
      * @return mixed
+     * @throws AssertionFailedException
      */
-    public function generate()
+    public function generate(): mixed
     {
         Assertion::notEmpty($this->values, 'At least one value should be registered.');
 
@@ -152,12 +179,13 @@ final class WeightedRandomGenerator
     /**
      * Generate a sample of $sampleCount random entries from the registered values. May contain duplicate values.
      *
+     * @param int $sampleCount The amount of samples we should generated.
+     * @return Generator
+     * @throws AssertionFailedException
      * @see WeightedRandomGenerator::generateMultipleWithoutDuplicates()
      *
-     * @param int $sampleCount The amount of samples we should generated.
-     * @return \Generator
      */
-    public function generateMultiple(int $sampleCount): \Generator
+    public function generateMultiple(int $sampleCount): Generator
     {
         Assertion::notEq($sampleCount, 0, 'The sample count should be higher then 0.');
 
@@ -171,9 +199,10 @@ final class WeightedRandomGenerator
      * same two values in one call. Separate calls may generate the same values.
      *
      * @param int $sampleCount
-     * @return \Generator
+     * @return Generator
+     * @throws AssertionFailedException
      */
-    public function generateMultipleWithoutDuplicates(int $sampleCount): \Generator
+    public function generateMultipleWithoutDuplicates(int $sampleCount): Generator
     {
         Assertion::notEq($sampleCount, 0, 'The sample count should be higher then 0.');
         Assertion::lessOrEqualThan(

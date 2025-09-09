@@ -9,10 +9,10 @@ namespace mschandr\WeightedRandom;
 final class WeightedValue
 {
     /** @var mixed */
-    private $value;
+    private mixed $value;
 
     /** @var int */
-    private $weight;
+    private int $weight;
 
     /**
      * WeightedValue constructor.
@@ -28,7 +28,7 @@ final class WeightedValue
     /**
      * @return array
      */
-    public function getArrayCopy()
+    public function getArrayCopy(): array
     {
         return [
             'value' => $this->getValue(),
@@ -39,7 +39,7 @@ final class WeightedValue
     /**
      * @return mixed
      */
-    public function getValue()
+    public function getValue(): mixed
     {
         return $this->value;
     }

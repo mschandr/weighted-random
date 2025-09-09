@@ -1,9 +1,11 @@
 <?php
 declare(strict_types=1);
 
+use mschandr\WeightedRandom\WeightedRandom;
 use mschandr\WeightedRandom\WeightedRandomGenerator;
 use mschandr\WeightedRandom\WeightedValue;
 use PHPUnit\Framework\TestCase;
+use Random\RandomException;
 
 /**
  * Class WeightedRandomGeneratorTest
@@ -190,5 +192,99 @@ final class WeightedRandomGeneratorTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->generator->getWeightedValue(new \stdClass());
+    }
+
+    /**
+     * @throws RandomException
+     */
+    public function testPickKeySinglePositiveAlwaysChosen(): void
+    {
+        $key = WeightedRandom::pickKey(['a' => 0, 'b' => 10, 'c' => 0]);
+        $this->assertSame('b', $key);
+    }
+
+    /**
+     * @throws RandomException
+     */
+    public function testPickKeyDoesNotMutateInput(): void
+    {
+        $weights = ['a' => 1, 'b' => 2];
+        $copy    = $weights;
+        WeightedRandom::pickKey($weights);
+        $this->assertSame($copy, $weights, 'Input weight array must not be mutated');
+    }
+
+    /**
+     * @return void
+     * @throws RandomException
+     */
+    public function testPickKeyFallbackOnEmptyOrAllZero(): void
+    {
+        $this->assertSame('', WeightedRandom::pickKey([]));
+        $this->assertSame('a', WeightedRandom::pickKey(['a' => 0, 'b' => 0]));
+    }
+
+    /**
+     * @throws RandomException
+     */
+    public function testPickKeySanitizesNegativesAndNonNumerics(): void
+    {
+        // negatives => 0; non-numeric => 0; at least one positive ensures a valid pick
+        $key = WeightedRandom::pickKey(['bad' => -5, 'weird' => 'x', 'ok' => 3]);
+        $this->assertSame('ok', $key);
+    }
+
+    /**
+     * @return void
+     */
+    public function testSeededIsDeterministicPerSeedAndNamespace(): void
+    {
+        $w = ['a' => 1, 'b' => 2, 'c' => 3];
+
+        $k1 = WeightedRandom::pickKeySeeded($w, 1234, 'ns.alpha');
+        $k2 = WeightedRandom::pickKeySeeded($w, 1234, 'ns.alpha');
+        $this->assertSame($k1, $k2, 'Same seed+namespace should repeat exactly');
+
+        $k3 = WeightedRandom::pickKeySeeded($w, 1234, 'ns.beta');
+        // Not asserting inequality (nonspecific), just making sure call works & returns a valid key
+        $this->assertArrayHasKey($k3, $w);
+    }
+
+    /**
+     * @return void
+     */
+    public function testSeededStreamsAreIndependentOfCallOrder(): void
+    {
+        $w = ['a'=>10, 'b'=>5, 'c'=>1];
+
+        // First pass: alpha then beta
+        $alpha1 = WeightedRandom::pickKeySeeded($w, 999, 'planets.type');
+        $beta1  = WeightedRandom::pickKeySeeded($w, 999, 'moons.count');
+
+        // Second pass: beta then alpha (reversed)
+        $beta2  = WeightedRandom::pickKeySeeded($w, 999, 'moons.count');
+        $alpha2 = WeightedRandom::pickKeySeeded($w, 999, 'planets.type');
+
+        $this->assertSame($alpha1, $alpha2, 'Namespace plan should isolate sequences');
+        $this->assertSame($beta1,  $beta2,  'Namespace plan should isolate sequences');
+    }
+
+    /**
+     * @return void
+     */
+    public function testSeededHandlesLargeTotals(): void
+    {
+        $w = ['x' => 1_000_000, 'y' => 2_000_000, 'z' => 3_000_000];
+        $k = WeightedRandom::pickKeySeeded($w, 42, 'large');
+        $this->assertArrayHasKey($k, $w);
+    }
+
+    /**
+     * @return void
+     */
+    public function testSeededFallbackOnAllZeroOrNegative(): void
+    {
+        $this->assertSame('a', WeightedRandom::pickKeySeeded(['a'=>0, 'b'=>0], 7, 'z'));
+        $this->assertSame('a', WeightedRandom::pickKeySeeded(['a'=>-1, 'b'=>-2], 7, 'z'));
     }
 }
