@@ -15,7 +15,7 @@ final class WeightedRandomGeneratorTest extends TestCase
     /**
      * @var WeightedRandomGenerator
      */
-    private $generator;
+    private WeightedRandomGenerator $generator;
 
     /**
      *
@@ -239,6 +239,7 @@ final class WeightedRandomGeneratorTest extends TestCase
 
     /**
      * @return void
+     * @requires PHP >= 8.2
      */
     public function testSeededIsDeterministicPerSeedAndNamespace(): void
     {
@@ -257,6 +258,8 @@ final class WeightedRandomGeneratorTest extends TestCase
      * Seeded streams should remain independent of call order.
      *
      * @return void
+     *
+     * @requires PHP >= 8.2
      */
     public function testSeededStreamsAreIndependentOfCallOrder(): void
     {
@@ -276,6 +279,7 @@ final class WeightedRandomGeneratorTest extends TestCase
 
     /**
      * @return void
+     * @requires PHP >= 8.2
      */
     public function testSeededHandlesLargeTotals(): void
     {
@@ -286,6 +290,7 @@ final class WeightedRandomGeneratorTest extends TestCase
 
     /**
      * @return void
+     * @requires PHP >= 8.2
      */
     public function testSeededFallbackOnAllZeroOrNegative(): void
     {
@@ -306,7 +311,8 @@ final class WeightedRandomGeneratorTest extends TestCase
 
         $normalized = $gen->normalizeWeights();
 
-        $this->assertEqualsWithDelta(1.0, array_sum($normalized), 0.0001, 'Normalized weights should sum to 1.0');
+        $this->assertEqualsWithDelta(1.0, array_sum($normalized), 0.0001,
+            'Normalized weights should sum to 1.0');
         $this->assertEqualsWithDelta(0.7, $normalized[array_key_first($normalized)], 0.0001);
         $this->assertEqualsWithDelta(0.3, $normalized[array_key_last($normalized)], 0.0001);
     }
