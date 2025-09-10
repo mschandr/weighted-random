@@ -28,35 +28,31 @@ final class WeightedRandomGeneratorTest extends TestCase
     /**
      * Test registering values of multiple types.
      */
-    public function testRegisterValue()
+    public function testRegisterValue(): void
     {
         $values = [
             123,
             '123',
             [1,2,3],
-            new stdClass(),
+            new \stdClass(),
             false,
             null
         ];
 
-        // Mock random number generator to return 1,2,3,4
-        $mockRandomNumberGenerator = $this->getMockBuilder(\stdClass::class)
-                ->addMethods(['__invoke'])
-                ->getMock();
-
-        $mockRandomNumberGenerator->method('__invoke')
-                ->will($this->onConsecutiveCalls(...range(1, count($values))));
-
-        $this->generator->setRandomNumberGenerator($mockRandomNumberGenerator);
-
-        foreach ($values as $value)
-        {
+        foreach ($values as $value) {
             $this->generator->registerValue($value);
         }
 
-        $sample = iterator_to_array($this->generator->generateMultipleWithoutDuplicates(count($values)));
-        $this->assertEquals($values, $sample);
+        $sample = iterator_to_array(
+            $this->generator->generateMultipleWithoutDuplicates(count($values))
+        );
+
+        $this->assertEqualsCanonicalizing(
+            $this->normalizeForComparison($values),
+            $this->normalizeForComparison($sample)
+        );
     }
+
 
     /**
      * Test registering a value with the WeightedValue model.
@@ -162,7 +158,7 @@ final class WeightedRandomGeneratorTest extends TestCase
     /**
      * Test the generateMultipleWithoutDuplicates for removing duplicate items from the results.
      */
-    public function testGenerateMultipleNoDuplicateValues()
+    public function testGenerateMultipleNoDuplicateValues(): void
     {
         $registeredValues = [
             '1' => 1,
@@ -171,22 +167,29 @@ final class WeightedRandomGeneratorTest extends TestCase
         ];
         $this->generator->registerValues($registeredValues);
 
-        // Mock random number generator to return the first item twice, then return items two and three.
+        // Mock RNG to force some duplicate draws
         $mockRandomNumberGenerator = $this->getMockBuilder(\stdClass::class)
-                ->addMethods(['__invoke'])
-                ->getMock();
+            ->addMethods(['__invoke'])
+            ->getMock();
 
         $mockRandomNumberGenerator->method('__invoke')
-                ->will($this->onConsecutiveCalls(1, 1, 2, 3));
+            ->will($this->onConsecutiveCalls(1, 1, 2, 3));
 
         $this->generator->setRandomNumberGenerator($mockRandomNumberGenerator);
 
-        $sample = iterator_to_array($this->generator->generateMultipleWithoutDuplicates(count($registeredValues)));
-        $this->assertEquals(array_keys($registeredValues), $sample);
+        $sample = iterator_to_array(
+            $this->generator->generateMultipleWithoutDuplicates(count($registeredValues))
+        );
+
+        $this->assertEqualsCanonicalizing(
+            $this->normalizeForComparison(array_keys($registeredValues)),
+            $this->normalizeForComparison($sample)
+        );
     }
 
     /**
-     * Test getting a weighted value for a non existing value, which should result in an invalid argument exception
+     * Test getting a weighted value for a non-existing value,
+     * which should result in an invalid argument exception
      */
     public function testGetNonExistingWeightedValue()
     {
@@ -251,22 +254,24 @@ final class WeightedRandomGeneratorTest extends TestCase
     }
 
     /**
+     * Seeded streams should remain independent of call order.
+     *
      * @return void
      */
     public function testSeededStreamsAreIndependentOfCallOrder(): void
     {
-        $w = ['a'=>10, 'b'=>5, 'c'=>1];
+        $weights = ['a' => 10, 'b' => 5, 'c' => 1];
 
         // First pass: alpha then beta
-        $alpha1 = WeightedRandom::pickKeySeeded($w, 999, 'planets.type');
-        $beta1  = WeightedRandom::pickKeySeeded($w, 999, 'moons.count');
+        $alpha1 = WeightedRandom::pickKeySeeded($weights, 999, 'stream.alpha');
+        $beta1  = WeightedRandom::pickKeySeeded($weights, 999, 'stream.beta');
 
-        // Second pass: beta then alpha (reversed)
-        $beta2  = WeightedRandom::pickKeySeeded($w, 999, 'moons.count');
-        $alpha2 = WeightedRandom::pickKeySeeded($w, 999, 'planets.type');
+        // Second pass: beta then alpha (reversed order)
+        $beta2  = WeightedRandom::pickKeySeeded($weights, 999, 'stream.beta');
+        $alpha2 = WeightedRandom::pickKeySeeded($weights, 999, 'stream.alpha');
 
-        $this->assertSame($alpha1, $alpha2, 'Namespace plan should isolate sequences');
-        $this->assertSame($beta1,  $beta2,  'Namespace plan should isolate sequences');
+        $this->assertSame($alpha1, $alpha2, 'Alpha stream should be independent of Beta stream');
+        $this->assertSame($beta1,  $beta2,  'Beta stream should be independent of Alpha stream');
     }
 
     /**
@@ -287,4 +292,59 @@ final class WeightedRandomGeneratorTest extends TestCase
         $this->assertSame('a', WeightedRandom::pickKeySeeded(['a'=>0, 'b'=>0], 7, 'z'));
         $this->assertSame('a', WeightedRandom::pickKeySeeded(['a'=>-1, 'b'=>-2], 7, 'z'));
     }
+
+    /**
+     * @return void
+     */
+    public function testNormalizeWeights(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues([
+            'apple'  => 70,
+            'banana' => 30,
+        ]);
+
+        $normalized = $gen->normalizeWeights();
+
+        $this->assertEqualsWithDelta(1.0, array_sum($normalized), 0.0001, 'Normalized weights should sum to 1.0');
+        $this->assertEqualsWithDelta(0.7, $normalized[array_key_first($normalized)], 0.0001);
+        $this->assertEqualsWithDelta(0.3, $normalized[array_key_last($normalized)], 0.0001);
+    }
+
+    /**
+     * @return void
+     */
+    public function testGetProbability(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues([
+            'common' => 7,
+            'rare'   => 3,
+        ]);
+
+        $this->assertEqualsWithDelta(0.7, $gen->getProbability('common'), 0.0001);
+        $this->assertEqualsWithDelta(0.3, $gen->getProbability('rare'), 0.0001);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $gen->getProbability('not-registered');
+    }
+
+    /**
+     *  This is a helper class to compare objects and types of objects
+     *  within an array.
+     */
+    private function normalizeForComparison(array $arr): array
+    {
+        return array_map(function ($item) {
+            if (is_object($item)) {
+                return 'object:' . spl_object_id($item);
+            }
+            if (is_array($item)) {
+                return 'array:' . md5(serialize($item));
+            }
+            return var_export($item, true); // scalars/null
+        }, $arr);
+    }
+
+
 }

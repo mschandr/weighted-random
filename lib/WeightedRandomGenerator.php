@@ -6,6 +6,7 @@ namespace mschandr\WeightedRandom;
 use Assert\Assertion;
 use Assert\AssertionFailedException;
 use Generator;
+use Random\RandomException;
 
 /**
  * Class WeightedRandomGenerator
@@ -15,94 +16,99 @@ use Generator;
  */
 final class WeightedRandomGenerator
 {
-    /** @var array|mixed[] */
-    private mixed $values = [];
-
-    /** @var array|int[] */
-    private array|int $weights = [];
-
-    /** @var int|null */
-    private ?int $totalWeightCount;
-
-    /** @var callable */
-    private $randomNumberGenerator;
+    /**
+     * @var array<int, mixed>
+     */
+    private array $values = [];
 
     /**
-     * WeightedRandomGenerator constructor.
+     * @var array<int, float>
      */
+    private array $weights = [];
+
+    /**
+     * @var float|null
+     */
+    private ?float $totalWeightCount = null;
+
+    /**
+     * @var callable
+     */
+    private $randomNumberGenerator;
+
     public function __construct()
     {
         $this->randomNumberGenerator = 'random_int';
     }
 
     /**
-     * @return string|int the generated value to be returned
-     * @throws AssertionFailedException
+     * Pick a weighted key.
+     *
+     * @return mixed
      */
-    public function pickKey(): string|int
+    public function pickKey(): mixed
     {
-        // If your current generate() already returns the chosen key, just forward:
         return $this->generate();
     }
 
     /**
+     * Deterministic seeded pick (uses WeightedRandom::pickKeySeeded).
+     *
      * @param int $seed
      * @param string $namespace
-     * @return string|int
+     * @return mixed
      */
-    public function pickKeySeeded(int $seed, string $namespace = ''): string|int
+    public function pickKeySeeded(int $seed, string $namespace = ''): mixed
     {
-        // If the generator holds $this->weights, reuse the static helper:
         return WeightedRandom::pickKeySeeded($this->weights, $seed, $namespace);
     }
 
     /**
-     * Register (add or update) a possible return value for the weighted random generator.
+     * Register (add or update) a possible return value.
      *
-     * @param mixed $value The possible return value.
-     * @param int $weight Weight of the possibility of getting this value as a whole number.
-     * @throws AssertionFailedException
+     * @param mixed $value
+     * @param int|float $weight
+     * @return WeightedRandomGenerator
      */
-    public function registerValue($value, int $weight = 1): void
+    public function registerValue(mixed $value, int|float $weight = 1): self
     {
-        Assertion::min($weight, 1, 'Weight can not be 0.');
+        if ($weight <= 0) {
+            throw new \InvalidArgumentException('Weight must be greater than zero.');
+        }
         $key = $this->getValueKey($value);
-        $this->setKeyWeight($key, $weight);
+        $this->setKeyWeight($key, (float)$weight);
         $this->resetTotalWeightCount();
+        return $this;
     }
 
     /**
-     * Register a value -> weight pair array as values.
-     * For example: $generator->registerValues(['small_chance' => 1, 'large_chance' => 100]);
+     * Register multiple values at once.
      *
-     * @param array $valueCollection Key - value pairs where the key is the value and the value is weight.
-     * @throws AssertionFailedException
+     * @param array<mixed, int|float> $valueCollection
      */
-    public function registerValues(array $valueCollection): void
+    public function registerValues(array $valueCollection): self
     {
         foreach ($valueCollection as $value => $weight) {
-            Assertion::integer($weight, 'Weight should be a whole number.');
+            if (!is_int($weight) && !is_float($weight)) {
+                throw new \InvalidArgumentException('Weight must be int or float.');
+            }
             $this->registerValue($value, $weight);
         }
+        return $this;
     }
 
     /**
-     * Add or update a possible return value for the weighted random generator.
-     *
-     * @param WeightedValue $weightedValue
-     * @throws AssertionFailedException
+     * Register via WeightedValue.
      */
-    public function registerWeightedValue(WeightedValue $weightedValue): void
+    public function registerWeightedValue(WeightedValue $weightedValue): self
     {
-        $this->registerValue($weightedValue->getValue(), $weightedValue->getWeight());
+        return $this->registerValue($weightedValue->getValue(), $weightedValue->getWeight());
     }
 
     /**
-     * Remove a value from the generator. After removing the value, it will not be returned by calling generate.
-     *
-     * @param $value
+     * Remove a registered value.
      */
-    public function removeValue($value): void
+    public function removeValue(mixed $value): void
     {
         $key = $this->getExistingValueKey($value);
         if ($key === null) {
@@ -113,9 +119,7 @@ final class WeightedRandomGenerator
     }
 
     /**
-     * Remove a value from the generator. After removing the value, it will not be returned by calling generate.
-     *
-     * @param WeightedValue $weightedValue
+     * Remove via WeightedValue.
      */
     public function removeWeightedValue(WeightedValue $weightedValue): void
     {
@@ -123,71 +127,71 @@ final class WeightedRandomGenerator
     }
 
     /**
-     * Return a generator that generated WeightedValue instances for all registered values.
+     * Get all registered WeightedValues.
      *
-     * @return Generator
+     * @return Generator<WeightedValue>
      */
     public function getWeightedValues(): Generator
     {
         foreach ($this->values as $key => $value) {
-            yield new WeightedValue(
-                $value,
-                $this->weights[$key]
-            );
+            yield new WeightedValue($value, $this->weights[$key]);
         }
     }
 
     /**
-     * Get the WeightedValue valueobject with the value and weight for a given value.
-     *
-     * @param $value
-     * @return WeightedValue
+     * Get one WeightedValue by value.
      */
-    public function getWeightedValue($value): WeightedValue
+    public function getWeightedValue(mixed $value): WeightedValue
     {
         $key = $this->getExistingValueKey($value);
         if ($key === null) {
             throw new \InvalidArgumentException('Given value is not registered.');
         }
-        return new WeightedValue(
-            $this->values[$key],
-            $this->weights[$key]
-        );
+        return new WeightedValue($this->values[$key], $this->weights[$key]);
     }
 
     /**
-     * Generate a random sample of one value from the registered values.
+     * Generate a single random value.
      *
      * @return mixed
-     * @throws AssertionFailedException
+     * @throws RandomException|AssertionFailedException
      */
     public function generate(): mixed
     {
         Assertion::notEmpty($this->values, 'At least one value should be registered.');
 
         $totalWeightCount = $this->getTotalWeightCount();
-        $randomNumberGenerator = $this->randomNumberGenerator;
-        $randomValue = $randomNumberGenerator(0, $totalWeightCount);
+
+        if ($totalWeightCount <= 0.0) {
+            throw new \RuntimeException('Total weight must be greater than zero.');
+        }
+
+        // Crypto-safe float in [0.0, totalWeightCount)
+        // random_int gives us uniform integer → scale to float
+        $precision = 1_000_000; // 6 decimal places
+        $randInt   = random_int(0, (int)($totalWeightCount * $precision) - 1);
+        $randomValue = $randInt / $precision;
+
         foreach ($this->weights as $key => $weight) {
-            if ($weight >= $randomValue) {
+            $randomValue -= $weight;
+            if ($randomValue < 0) {
                 return $this->values[$key];
             }
-            $randomValue -= $weight;
         }
-    }
 
+        // Fallback: last value
+        return end($this->values);
+    }
     /**
-     * Generate a sample of $sampleCount random entries from the registered values. May contain duplicate values.
+     * Generate multiple values (duplicates allowed).
      *
-     * @param int $sampleCount The amount of samples we should generated.
-     * @return Generator
-     * @throws AssertionFailedException
-     * @see WeightedRandomGenerator::generateMultipleWithoutDuplicates()
-     *
+     * @return Generator<mixed>
      */
     public function generateMultiple(int $sampleCount): Generator
     {
-        Assertion::notEq($sampleCount, 0, 'The sample count should be higher then 0.');
+        if ($sampleCount <= 0) {
+            throw new \InvalidArgumentException('Sample count must be greater than zero.');
+        }
 
         for ($i = 0; $i < $sampleCount; $i++) {
             yield $this->generate();
@@ -195,21 +199,18 @@ final class WeightedRandomGenerator
     }
 
     /**
-     * Generate a sample of $sampleCount random entries from the registered values. This method will never return the
-     * same two values in one call. Separate calls may generate the same values.
+     * Generate multiple values (no duplicates).
      *
-     * @param int $sampleCount
-     * @return Generator
-     * @throws AssertionFailedException
+     * @return Generator<mixed>
      */
     public function generateMultipleWithoutDuplicates(int $sampleCount): Generator
     {
-        Assertion::notEq($sampleCount, 0, 'The sample count should be higher then 0.');
-        Assertion::lessOrEqualThan(
-            $sampleCount,
-            count($this->values),
-            'The sample count should be less or equal to the registered value count.'
-        );
+        if ($sampleCount <= 0) {
+            throw new \InvalidArgumentException('Sample count must be greater than zero.');
+        }
+        if ($sampleCount > count($this->values)) {
+            throw new \InvalidArgumentException('Sample count exceeds registered value count.');
+        }
 
         $returnedCollection = [];
         while (count($returnedCollection) < $sampleCount) {
@@ -223,10 +224,9 @@ final class WeightedRandomGenerator
     }
 
     /**
-     * Set a custom random number generator.
+     * Set a custom RNG (mainly for testing).
      *
-     * @deprecated This method should only be used for testing.
-     * @param callable $randomNumberGenerator A callable with a $min and a $max argument, returning a random INT.
+     * @param callable(int,int):int $randomNumberGenerator
      */
     public function setRandomNumberGenerator(callable $randomNumberGenerator): void
     {
@@ -234,48 +234,68 @@ final class WeightedRandomGenerator
     }
 
     /**
-     * Get a valuekey for the given value. This is the existing key if the value was already registered. If the value
-     * was not registered yet, the value is stored and the key returned.
-     *
-     * @param $value
+     * @param mixed $value
      * @return int
      */
-    private function getValueKey($value): int
+    private function getValueKey(mixed $value): int
     {
-        if (in_array($value, $this->values, true) === false) {
+        if (!in_array($value, $this->values, true)) {
             $this->values[] = $value;
         }
         return $this->getExistingValueKey($value) ?? 0;
     }
 
     /**
-     * Set the weight for a given key.
-     *
      * @param int $key
-     * @param int $weight
+     * @param float $weight
+     * @return void
      */
-    private function setKeyWeight(int $key, int $weight): void
+    private function setKeyWeight(int $key, float $weight): void
     {
         $this->weights[$key] = $weight;
     }
 
     /**
-     * Get the key for a given value, or NULL when the value was not yet registered.
-     *
-     * @param $value
+     * @param mixed $value
      * @return int|null
      */
-    private function getExistingValueKey($value): ?int
+    private function getExistingValueKey(mixed $value): ?int
     {
-        $key = array_search($value, $this->values, true);
-        if ($key === false) {
-            return null;
+        foreach ($this->values as $key => $stored) {
+            if ($this->valuesAreEqual($stored, $value)) {
+                return $key;
+            }
         }
-        return $key;
+        return null;
     }
 
     /**
-     * Reset the total weight count. Should be called when a value is added/removed or when it's weight has changed.
+     * @param mixed $a
+     * @param mixed $b
+     * @return bool
+     */
+    private function valuesAreEqual(mixed $a, mixed $b): bool
+    {
+        // Scalars + null → strict compare
+        if (is_scalar($a) || $a === null) {
+            return $a === $b;
+        }
+
+        // Arrays → deep compare
+        if (is_array($a) && is_array($b)) {
+            return $a == $b; // loose compare is fine here for deep equality
+        }
+
+        // Objects → same instance
+        if (is_object($a) && is_object($b)) {
+            return $a === $b;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return void
      */
     private function resetTotalWeightCount(): void
     {
@@ -283,21 +303,52 @@ final class WeightedRandomGenerator
     }
 
     /**
-     * Return the total weight of all values that are registered.
-     *
-     * Cached in self::totalWeightCount, and only recalculated when necessary.
-     *
-     * @return int
+     * @return float
      */
-    private function getTotalWeightCount(): int
+    private function getTotalWeightCount(): float
     {
         if ($this->totalWeightCount === null) {
-            $count = 0;
-            foreach ($this->weights as $key => $weight) {
-                $count += $weight;
-            }
-            $this->totalWeightCount = $count;
+            $this->totalWeightCount = array_sum($this->weights);
         }
         return $this->totalWeightCount;
     }
+
+    /**
+     * Get normalized weights (sum = 1.0).
+     *
+     * @return array<int, float> keys aligned with $this->values
+     */
+    public function normalizeWeights(): array
+    {
+        $total = $this->getTotalWeightCount();
+        if ($total <= 0.0) {
+            throw new \RuntimeException('Cannot normalize: total weight is zero.');
+        }
+
+        $normalized = [];
+        foreach ($this->weights as $key => $weight) {
+            $normalized[$key] = $weight / $total;
+        }
+        return $normalized;
+    }
+
+    /**
+     * Get probability of a given value (0.0–1.0).
+     */
+    public function getProbability(mixed $value): float
+    {
+        $key = $this->getExistingValueKey($value);
+        if ($key === null) {
+            throw new \InvalidArgumentException('Given value is not registered.');
+        }
+
+        $total = $this->getTotalWeightCount();
+        if ($total <= 0.0) {
+            throw new \RuntimeException('Cannot compute probability: total weight is zero.');
+        }
+
+        return $this->weights[$key] / $total;
+    }
+
+
 }
