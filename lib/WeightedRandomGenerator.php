@@ -167,7 +167,6 @@ final class WeightedRandomGenerator
         }
 
         // Crypto-safe float in [0.0, totalWeightCount)
-        // random_int gives us uniform integer → scale to float
         $precision = 1_000_000; // 6 decimal places
         $randInt   = random_int(0, (int)($totalWeightCount * $precision) - 1);
         $randomValue = $randInt / $precision;
@@ -175,17 +174,29 @@ final class WeightedRandomGenerator
         foreach ($this->weights as $key => $weight) {
             $randomValue -= $weight;
             if ($randomValue < 0) {
-                return $this->values[$key];
+                $value = $this->values[$key];
+
+                // 👇 Handle groups
+                if ($value instanceof WeightedGroup) {
+                    return $value->pickOne();
+                }
+
+                return $value;
             }
         }
 
-        // Fallback: last value
-        return end($this->values);
+        // Fallback: last value (also check if group)
+        $last = end($this->values);
+        return $last instanceof WeightedGroup ? $last->pickOne() : $last;
     }
+
     /**
      * Generate multiple values (duplicates allowed).
      *
+     * @param int $sampleCount
      * @return Generator<mixed>
+     * @throws AssertionFailedException
+     * @throws RandomException
      */
     public function generateMultiple(int $sampleCount): Generator
     {
@@ -292,6 +303,17 @@ final class WeightedRandomGenerator
         }
 
         return false;
+    }
+
+    /**
+     * @param array $values
+     * @param int|float $weight
+     * @return $this
+     */
+    public function registerGroup(array $values, int|float $weight): self
+    {
+        $this->registerValue(new WeightedGroup($values), $weight);
+        return $this;
     }
 
     /**
