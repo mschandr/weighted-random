@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use Assert\AssertionFailedException;
 use mschandr\WeightedRandom\WeightedRandom;
 use mschandr\WeightedRandom\WeightedRandomGenerator;
 use mschandr\WeightedRandom\WeightedValue;
@@ -315,6 +316,62 @@ final class WeightedRandomGeneratorTest extends TestCase
             'Normalized weights should sum to 1.0');
         $this->assertEqualsWithDelta(0.7, $normalized[array_key_first($normalized)], 0.0001);
         $this->assertEqualsWithDelta(0.3, $normalized[array_key_last($normalized)], 0.0001);
+    }
+
+    /**
+     * @return void
+     * @throws RandomException
+     * @throws AssertionFailedException
+     */
+    public function testRegisterGroupReturnsOnlyGroupMembers(): void
+    {
+        $groupMembers = ['wolf', 'bear', 'lion'];
+
+        $this->generator->registerGroup($groupMembers, 5);
+
+        // Draw multiple samples
+        $results = iterator_to_array($this->generator->generateMultiple(50));
+
+        foreach ($results as $result) {
+            $this->assertContains(
+                $result,
+                $groupMembers,
+                "Generated value {$result} was not in the registered group"
+            );
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function testRegisterGroupEmptyThrows(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->generator->registerGroup([], 5);
+    }
+
+    /**
+     * @return void
+     * @throws AssertionFailedException
+     * @throws RandomException
+     */
+    public function testMultipleGroupsWorkIndependently(): void
+    {
+        $animals = ['wolf', 'bear', 'lion'];
+        $dragons = ['dragon'];
+
+        $this->generator
+            ->registerGroup($animals, 5)
+            ->registerGroup($dragons, 1);
+
+        $results = iterator_to_array($this->generator->generateMultiple(100));
+
+        foreach ($results as $result) {
+            $this->assertTrue(
+                in_array($result, $animals, true) || in_array($result, $dragons, true),
+                "Generated value {$result} not in any group"
+            );
+        }
     }
 
     /**
