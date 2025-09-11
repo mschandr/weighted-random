@@ -36,6 +36,14 @@ final class WeightedRandomGenerator
      */
     private $randomNumberGenerator;
 
+    /** @var array<mixed> */
+    private array $bag = [];
+
+    /**
+     * @var int
+     */
+    private int $bagIndex = 0;
+
     public function __construct()
     {
         $this->randomNumberGenerator = 'random_int';
@@ -232,6 +240,58 @@ final class WeightedRandomGenerator
             $returnedCollection[] = $sample;
             yield $sample;
         }
+    }
+
+    /**
+     * @return mixed
+     */
+    public function generateFromBag(): mixed
+    {
+        if (empty($this->bag)) {
+            $this->refillBag();
+        }
+
+        $value = $this->bag[$this->bagIndex++];
+        if ($this->bagIndex >= count($this->bag)) {
+            $this->bag = [];
+            $this->bagIndex = 0;
+        }
+
+        return $value instanceof WeightedGroup ? $value->pickOne() : $value;
+    }
+
+    /**
+     * @param int $count
+     * @return array
+     */
+    public function generateMultipleFromBag(int $count): array
+    {
+        $results = [];
+        for ($i = 0; $i < $count; $i++) {
+            $results[] = $this->generateFromBag();
+        }
+        return $results;
+    }
+
+    private function refillBag(): void
+    {
+        $this->bag = [];
+
+        foreach ($this->getWeightedValues() as $weightedValue) {
+            $value  = $weightedValue->getValue();
+            $weight = $weightedValue->getWeight();
+
+            for ($i = 0; $i < (int)round($weight); $i++) {
+                $this->bag[] = $value;
+            }
+        }
+
+        if (empty($this->bag)) {
+            throw new \RuntimeException('Cannot refill bag: no values registered.');
+        }
+
+        shuffle($this->bag);
+        $this->bagIndex = 0;
     }
 
     /**

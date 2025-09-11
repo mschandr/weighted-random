@@ -409,5 +409,70 @@ final class WeightedRandomGeneratorTest extends TestCase
         }, $arr);
     }
 
+    /**
+     * @return void
+     */
+    public function testBagSystemRespectsWeights(): void
+    {
+        $this->generator->registerValues([
+            'a' => 2,
+            'b' => 1,
+        ]);
+
+        $results = $this->generator->generateMultipleFromBag(3);
+
+        $this->assertCount(3, $results);
+
+        $counts = array_count_values($results);
+        $this->assertEquals(2, $counts['a'] ?? 0, 'Bag should produce exactly 2x "a"');
+        $this->assertEquals(1, $counts['b'] ?? 0, 'Bag should produce exactly 1x "b"');
+    }
+
+    public function testBagRefillsAfterExhaustion(): void
+    {
+        $this->generator->registerValues([
+            'x' => 2,
+            'y' => 1,
+        ]);
+
+        // First full bag draw
+        $results1 = $this->generator->generateMultipleFromBag(3);
+
+        // Second full bag draw (should refill)
+        $results2 = $this->generator->generateMultipleFromBag(3);
+
+        $this->assertCount(3, $results1);
+        $this->assertCount(3, $results2);
+
+        $counts1 = array_count_values($results1);
+        $counts2 = array_count_values($results2);
+
+        $this->assertEquals(2, $counts1['x'] ?? 0);
+        $this->assertEquals(1, $counts1['y'] ?? 0);
+
+        $this->assertEquals(2, $counts2['x'] ?? 0);
+        $this->assertEquals(1, $counts2['y'] ?? 0);
+    }
+
+    public function testBagWorksWithGroups(): void
+    {
+        $animals = ['wolf', 'bear', 'lion'];
+        $this->generator->registerGroup($animals, 3);
+
+        $results = $this->generator->generateMultipleFromBag(3);
+
+        $this->assertCount(3, $results);
+
+        foreach ($results as $r) {
+            $this->assertContains($r, $animals, "Result {$r} was not a valid group member");
+        }
+    }
+
+    public function testBagThrowsWhenNoValuesRegistered(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->generator->generateFromBag();
+    }
+
 
 }
