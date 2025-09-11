@@ -127,6 +127,7 @@ $gen->generate();
 - Probability helpers:
   - `normalizeWeights()` → normalized distribution.
   - `getProbability($value)` → single-value probability.
+- **Bag System** (v2.2+) → fairness via without-replacement draws.
 - **Stricter validation** → safer, more predictable behavior.
 
 ## 🛠️ Upgrade Checklist
@@ -141,9 +142,9 @@ $gen->generate();
 1. ~~Floats + Normalization~~
 2. ~~Validation Enhancements~~
 3. ~~Chaining API~~
-4. Groups
+4. ~~Groups~~
 5. ~~Seeded RNG~~
 6. Distribution Introspection
-7. Bag System
+7. ~~Bag System~~
 8. Decay/Boost
 9. Composite Generators
