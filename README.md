@@ -9,141 +9,140 @@ weight have a larger probability to be picked.
 
 ---
 
-## Installing
+## Installation
 
-Install this library using Composer:
+To install this library using Composer:
 
 ```bash
 composer require mschandr/weighted-random
 ```
 
-## Getting started
-Using this library is simple: instantiate the `WeightedRandomGenerator`, register values, and start generating random values.
-
-```php
-<?php
-use mschandr\WeightedRandom\WeightedRandomGenerator;
-
-// Initiate the generator
-$generator = new WeightedRandomGenerator();
-
-// Register some value
-$generator->registerValue('foobar', 5);
-
-// And get a random value
-echo $generator->generate() . PHP_EOL;
-```
+## 🚀 Usage
 
 ### Registering values
-You can register values with associated weights.
-Higher weights mean a higher probability of being picked.
-
 ```php
-<?php
 use mschandr\WeightedRandom\WeightedRandomGenerator;
 
-$generator = new WeightedRandomGenerator();
+$gen = new WeightedRandomGenerator();
 
-// Register with weight 5
-$generator->registerValue('foobar', 5);
+// Register values with integer or float weights
+$gen->registerValue('common', 0.7)
+    ->registerValue('rare', 0.3);
 
-// Override with weight 1
-$generator->registerValue('foobar', 1);
-
-// Throws \InvalidArgumentException (weight must be > 0)
-$generator->registerValue('foobar', 0);
+// Draw a value
+echo $gen->generate(); // "common" or "rare"
 ```
-Register multiple values at once with `registerValues()`:
+---
+
+### Multiple values at once
 
 ```php
-<?php
-$generator->registerValues([
-    'foo' => 1,
-    'bar' => 2,
+$gen = new WeightedRandomGenerator();
+$gen->registerValues([
+    'apple'  => 70,
+    'banana' => 30,
 ]);
 
-// Override bar, foo stays the same
-$generator->registerValues([
-    'bar' => 1,
-]);
-
-// Throws exception for weight 0
-$generator->registerValues([
-    'bar' => 0,
-]);
-```
-Remove values with `removeValue()`:
-
-```php
-<?php
-$generator->registerValue('foobar', 2);
-$generator->removeValue('foobar');
-```
-
-You can also use the `WeightedValue` object with `registerWeightedValue()` and `removeWeightedValue()`:
-
-```php
-<?php
-use mschandr\WeightedRandom\WeightedValue;
-
-$weightedValue = new WeightedValue('foobar', 2);
-$generator->registerWeightedValue($weightedValue);
-$generator->removeWeightedValue($weightedValue);
-```
-
-## Retrieving registered values
-Registered values are always returned as `WeightedValue` objects.
-
-```php
-<?php
-$generator->registerValues([
-    'foo' => 2,
-    'bar' => 3,
-]);
-
-// Retrieve all values
-foreach ($generator->getWeightedValues() as $weightedValue) {
-    echo sprintf('%s => %s', $weightedValue->getValue(), $weightedValue->getWeight()) . PHP_EOL;
-}
-
-// Retrieve one by value
-$weightedValue = $generator->getWeightedValue('foo');
-echo $weightedValue->getWeight() . PHP_EOL;
-```
-
-## Generating a random sample
-Single value
-
-```php
-<?php
-$generator->registerValue('foo', 2);
-echo $generator->generate() . PHP_EOL;
-```
-Multiple values (with duplicates allowed):
-
-```php
-<?php
-foreach ($generator->generateMultiple(2) as $value) {
-    echo $value . PHP_EOL;
+foreach ($gen->generateMultiple(5) as $value) {
+    echo $value, PHP_EOL;
 }
 ```
-Multiple values (no duplicates):
+---
+
+### No duplicates
+
 ```php
-<?php
-foreach ($generator->generateMultipleWithoutDuplicates(2) as $value) {
-    echo $value . PHP_EOL;
+foreach ($gen->generateMultipleWithoutDuplicates(2) as $value) {
+    echo $value, PHP_EOL;
 }
 ```
+---
 
-**Note**: Trying to generate more unique values than registered will throw an `\InvalidArgumentException`.
+### Probability helpers
+
+```php
+$gen = new WeightedRandomGenerator();
+$gen->registerValues([
+    'apple'  => 70,
+    'banana' => 30,
+]);
+
+print_r($gen->normalizeWeights());
+// ['apple' => 0.7, 'banana' => 0.3]
+
+echo $gen->getProbability('banana'); // 0.3
+```
+### Seeded RNG (PHP ≥ 8.2)
+
+```php
+use mschandr\WeightedRandom\WeightedRandom;
+
+$weights = ['a' => 10, 'b' => 5, 'c' => 1];
+
+echo WeightedRandom::pickKeySeeded($weights, 1234, 'stream.alpha');
+echo WeightedRandom::pickKeySeeded($weights, 1234, 'stream.beta');
+```
+---
+
+- Same seed + namespace = reproducible results.
+- Different namespaces = independent streams.
+
+## Requirements
+
+- PHP 8.1 – 8.4
+- Composer
+  Seeded RNG requires PHP **8.2+**. On PHP 8.1, those tests are automatically skipped.
+
+## 🛠 Development
+```bash
+vendor/bin/phpunit -c phpunit.xml --color
+```
+GitHub Actions CI runs tests against **PHP 8.1, 8.2, 8.3, 8.4.**
+
+## License
+MIT License.
+
+---
+## Migration Guide (1.x → 2.x)
+
+WeightedRandom 2.x introduces new features and stricter validation. If you’re upgrading from 1.x, here’s what you need to know:
+
+### ⚠️ Breaking Changes
+- **Zero or negative weights** are no longer allowed.
+```php
+// ❌ This will now throw an exception
+$gen->registerValue('foo', 0);
+```
+- **Empty sets** are not permitted.
+```php
+// ❌ This will now throw
+$gen->generate();
+```
+- **Tests that assumed specific ordering** may fail. Random draws are inherently order-independent — update assertions to check for membership, not sequence.
+---
+## What’s New
+- **Float weight support** → Use 0.7 vs 0.3 without scaling up to integers.
+- Seeded RNG with namespace isolation (PHP ≥ 8.2) → Deterministic, reproducible draws.
+- Chaining API for cleaner code.
+- Probability helpers:
+  - `normalizeWeights()` → normalized distribution.
+  - `getProbability($value)` → single-value probability.
+- **Stricter validation** → safer, more predictable behavior.
+
+## 🛠️ Upgrade Checklist
+
+1. Review your code and remove any weights ≤ 0.
+2. If you used floats before by scaling (e.g., 70 vs 30), you can now write them as 0.7 vs 0.3.
+3. If you want reproducible randomness, upgrade to PHP 8.2+ and switch to pickKeySeeded().
+4. Update tests to allow for order-independent results.
+
 
 # Roadmap
-
-1. Floats + Normalization
-2. Validation Enhancements
-3. Chaining API
+1. ~~Floats + Normalization~~
+2. ~~Validation Enhancements~~
+3. ~~Chaining API~~
 4. Groups
-5. Seeded RNG
+5. ~~Seeded RNG~~
 6. Distribution Introspection
 7. Bag System
 8. Decay/Boost
