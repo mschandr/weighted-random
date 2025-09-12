@@ -1,12 +1,11 @@
-<phpunit bootstrap="vendor/autoload.php">
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php"
+         colors="true"
+         verbose="true"
+         stopOnFailure="true">
     <testsuites>
-        <testsuite name="weighted-random">
-            <directory>test</directory>
+        <testsuite name="WeightedRandom Test Suite">
+            <directory>tests</directory>
         </testsuite>
     </testsuites>
-    <filter>
-        <whitelist addUncoveredFilesFromWhitelist="true">
-            <directory>./lib</directory>
-        </whitelist>
-    </filter>
 </phpunit>
