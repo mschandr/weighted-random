@@ -15,7 +15,7 @@ use mschandr\WeightedRandom\Value\WeightedGroup;
  * Classic probabilistic generator that supports int/float weights,
  * groups, normalization, and seeded RNG (via WeightedRandom facade).
  */
-final class WeightedRandomGenerator implements WeightedRandomInterface
+class WeightedRandomGenerator implements WeightedRandomInterface
 {
     /** @var array<mixed> */
     private array $values = [];
@@ -123,6 +123,9 @@ final class WeightedRandomGenerator implements WeightedRandomInterface
     public function getWeightedValues(): PhpGenerator
     {
         foreach ($this->values as $key => $value) {
+            if (!array_key_exists($key, $this->weights)) {
+                continue; // skip values with no weight
+            }
             yield new WeightedValue($value, $this->weights[$key]);
         }
     }

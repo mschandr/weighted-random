@@ -1,11 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit bootstrap="vendor/autoload.php"
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.3/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         cacheDirectory=".phpunit.cache"
+         executionOrder="depends,defects"
+         requireCoverageMetadata="true"
+         beStrictAboutCoverageMetadata="true"
+         beStrictAboutOutputDuringTests="true"
+         displayDetailsOnPhpunitDeprecations="true"
+         failOnPhpunitDeprecation="true"
+         failOnRisky="true"
+         failOnWarning="true"
          colors="true"
-         verbose="true"
-         stopOnFailure="true">
+         testdox="true">
+
     <testsuites>
-        <testsuite name="WeightedRandom Test Suite">
+        <testsuite name="default">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
+
+    <source>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+    </source>
+
+    <coverage>
+        <report>
+            <html outputDirectory="build/coverage-html"/>
+            <clover outputFile="build/coverage.xml"/>
+            <php outputFile="build/coverage.cov"/>
+        </report>
+    </coverage>
 </phpunit>
