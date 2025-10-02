@@ -61,3 +61,4 @@ WeightedRandom 2.x introduces new features and stricter validation. If you’re 
 7. ~~Bag System~~
 8. Decay/Boost
 9. Composite Generators
+10. Code coverage and proper testing 
