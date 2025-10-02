@@ -1,10 +1,8 @@
-name: PHPUnit Tests for Weighted Random
+name: PHPUnit Tests & Coverage for Weighted Random
 
 on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+  push:        # runs on push to any branch
+  pull_request: # runs on PRs against any branch
 
 jobs:
   tests:
@@ -22,11 +20,18 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          coverage: none
+          coverage: xdebug
           tools: composer:v2
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Run PHPUnit
+      - name: Run PHPUnit with coverage
         run: vendor/bin/phpunit --configuration phpunit.xml --colors=always
+
+      - name: Upload coverage to Codecov
+        if: matrix.php == '8.3'
+        uses: codecov/codecov-action@v4
+        with:
+          file: build/coverage.xml
+          fail_ci_if_error: true
