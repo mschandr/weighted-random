@@ -26,20 +26,12 @@ class WeightedRandomGenerator implements WeightedRandomInterface
     private ?float $totalWeightCount = null;
 
     /** @var callable */
-    private $randomNumberGenerator;
+    private     $randomNumberGenerator;
+    private int $maxAttemptsFactor = 10;
 
     public function __construct()
     {
         $this->randomNumberGenerator = 'random_int';
-    }
-
-    public function registerValue(mixed $value, float $weight): self
-    {
-        Assert::greaterThan($weight, 0, 'Weight must be greater than 0.');
-        $key                 = $this->getValueKey($value);
-        $this->weights[$key] = $weight;
-        $this->resetTotalWeightCount();
-        return $this;
     }
 
     public function registerValues(array $valueCollection): self
@@ -51,6 +43,34 @@ class WeightedRandomGenerator implements WeightedRandomInterface
         return $this;
     }
 
+    public function registerValue(mixed $value, float $weight): self
+    {
+        Assert::greaterThan($weight, 0, 'Weight must be greater than 0.');
+        $key                 = $this->getValueKey($value);
+        $this->weights[$key] = $weight;
+        $this->resetTotalWeightCount();
+        return $this;
+    }
+
+    private function getValueKey(mixed $value): int
+    {
+        if (!in_array($value, $this->values, true)) {
+            $this->values[] = $value;
+        }
+        return $this->getExistingValueKey($value) ?? array_key_last($this->values);
+    }
+
+    private function getExistingValueKey(mixed $value): ?int
+    {
+        $key = array_search($value, $this->values, true);
+        return $key === false ? null : $key;
+    }
+
+    private function resetTotalWeightCount(): void
+    {
+        $this->totalWeightCount = null;
+    }
+
     public function registerGroup(array $values, float $weight): self
     {
         if ($weight <= 0) {
@@ -60,6 +80,14 @@ class WeightedRandomGenerator implements WeightedRandomInterface
             throw new \InvalidArgumentException('Group must contain at least one member.');
         }
         return $this->registerValue(new WeightedGroup($values), $weight);
+    }
+
+    public function generateMultiple(int $count): iterable
+    {
+        Assert::greaterThan($count, 0, 'Sample count must be greater than 0.');
+        for ($i = 0; $i < $count; $i++) {
+            yield $this->generate();
+        }
     }
 
     /**
@@ -76,7 +104,8 @@ class WeightedRandomGenerator implements WeightedRandomInterface
 
         // Crypto-safe float in [0.0, totalWeightCount)
         $precision   = 1_000_000;
-        $randInt     = random_int(0, (int)($totalWeightCount * $precision) - 1);
+        $rng         = $this->randomNumberGenerator;
+        $randInt     = $rng(0, (int)($totalWeightCount * $precision) - 1);
         $randomValue = $randInt / $precision;
 
         foreach ($this->weights as $key => $weight) {
@@ -91,21 +120,32 @@ class WeightedRandomGenerator implements WeightedRandomInterface
         return $last instanceof WeightedGroup ? $last->pickOne() : $last;
     }
 
-    public function generateMultiple(int $count): iterable
+    private function getTotalWeightCount(): float
     {
-        Assert::greaterThan($count, 0, 'Sample count must be greater than 0.');
-        for ($i = 0; $i < $count; $i++) {
-            yield $this->generate();
+        if ($this->totalWeightCount === null) {
+            $this->totalWeightCount = array_sum($this->weights);
         }
+        return $this->totalWeightCount;
     }
 
+    /**
+     * @param int $count
+     * @return iterable
+     */
     public function generateMultipleWithoutDuplicates(int $count): iterable
     {
         Assert::greaterThan($count, 0, 'Sample count must be greater than 0.');
-        Assert::lessOrEqualThan($count, count($this->values), 'Sample count exceeds registered value count.');
+        Assert::lessThanEq($count, count($this->values), 'Sample count exceeds registered value count.');
 
-        $returned = [];
+        $returned    = [];
+        $attempts    = 0;
+        $maxAttempts = $this->maxAttemptsFactor ?: ($count * 10); // arbitrary safety cap
+
         while (count($returned) < $count) {
+            if ($attempts++ >= $maxAttempts) {
+                throw new \RuntimeException('Unable to generate enough unique values without duplicates.');
+            }
+
             $sample = $this->generate();
             if (in_array($sample, $returned, true)) {
                 continue;
@@ -161,30 +201,8 @@ class WeightedRandomGenerator implements WeightedRandomInterface
         return $sum > 0.0 ? $this->weights[$key] / $sum : 0.0;
     }
 
-    private function getValueKey(mixed $value): int
+    public function setMaxAttemptsFactor(int $factor): void
     {
-        if (!in_array($value, $this->values, true)) {
-            $this->values[] = $value;
-        }
-        return $this->getExistingValueKey($value) ?? array_key_last($this->values);
-    }
-
-    private function getExistingValueKey(mixed $value): ?int
-    {
-        $key = array_search($value, $this->values, true);
-        return $key === false ? null : $key;
-    }
-
-    private function resetTotalWeightCount(): void
-    {
-        $this->totalWeightCount = null;
-    }
-
-    private function getTotalWeightCount(): float
-    {
-        if ($this->totalWeightCount === null) {
-            $this->totalWeightCount = array_sum($this->weights);
-        }
-        return $this->totalWeightCount;
+        $this->maxAttemptsFactor = $factor;
     }
 }

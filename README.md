@@ -1,6 +1,7 @@
 # Weighted Random
 
 [![PHPUnit Tests](https://github.com/mschandr/weighted-random/actions/workflows/php.yml/badge.svg)](https://github.com/mschandr/weighted-random/actions/workflows/php.yml)
+[![codecov](https://codecov.io/github/mschandr/weighted-random/graph/badge.svg?token=4J70DHYFTK)](https://codecov.io/github/mschandr/weighted-random)
 [![Latest Stable Version](https://img.shields.io/packagist/v/mschandr/weighted-random.svg)](https://packagist.org/packages/mschandr/weighted-random)
 [![License](https://img.shields.io/github/license/mschandr/weighted-random.svg)](LICENSE)
 

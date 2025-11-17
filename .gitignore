@@ -4,3 +4,4 @@ coverage.xml
 .phpunit.result.cache
 .phpunit.cache
 build/*
+junit.xml
