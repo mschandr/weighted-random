@@ -352,5 +352,268 @@ final class WeightedRandomGeneratorTest extends TestCase
         $this->assertSame(3.0, $values[0]->getWeight());
     }
 
+    // --- Distribution Introspection Tests ---
+
+    public function testGetDistributionReturnsValueToProbabilityMapping(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 1.0, 'b' => 2.0, 'c' => 1.0]);
+
+        $dist = $gen->getDistribution();
+
+        $this->assertEqualsWithDelta(0.25, $dist['a'], 0.001);
+        $this->assertEqualsWithDelta(0.50, $dist['b'], 0.001);
+        $this->assertEqualsWithDelta(0.25, $dist['c'], 0.001);
+    }
+
+    public function testGetDistributionHandlesGroups(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 1.0);
+        $gen->registerGroup(['x', 'y'], 2.0);
+
+        $dist = $gen->getDistribution();
+
+        // 'a' has weight 1.0 out of 3.0 total = 1/3
+        $this->assertEqualsWithDelta(1/3, $dist['a'], 0.001);
+        // Group has weight 2.0, split between x and y = 1/3 each
+        $this->assertEqualsWithDelta(1/3, $dist['x'], 0.001);
+        $this->assertEqualsWithDelta(1/3, $dist['y'], 0.001);
+    }
+
+    public function testGetEntropyReturnsZeroForSingleValue(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('only', 1.0);
+
+        $entropy = $gen->getEntropy();
+
+        $this->assertSame(0.0, $entropy);
+    }
+
+    public function testGetEntropyReturnsMaxForUniformDistribution(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 1.0, 'b' => 1.0, 'c' => 1.0, 'd' => 1.0]);
+
+        $entropy = $gen->getEntropy();
+
+        // Max entropy for 4 values is log2(4) = 2.0
+        $this->assertEqualsWithDelta(2.0, $entropy, 0.001);
+    }
+
+    public function testGetExpectedValueForNumericValues(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues([1 => 1.0, 2 => 1.0, 3 => 1.0]);
+
+        $expected = $gen->getExpectedValue();
+
+        // (1*1 + 2*1 + 3*1) / 3 = 6/3 = 2.0
+        $this->assertEqualsWithDelta(2.0, $expected, 0.001);
+    }
+
+    public function testGetExpectedValueReturnsNullForNonNumericValues(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 1.0, 'b' => 2.0]);
+
+        $expected = $gen->getExpectedValue();
+
+        $this->assertNull($expected);
+    }
+
+    public function testGetVarianceForNumericValues(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues([1 => 1.0, 2 => 1.0, 3 => 1.0]);
+
+        $variance = $gen->getVariance();
+
+        // Variance of [1,2,3] with equal weights: ((1-2)^2 + (2-2)^2 + (3-2)^2) / 3 = 2/3
+        $this->assertEqualsWithDelta(2/3, $variance, 0.001);
+    }
+
+    public function testGetStandardDeviationForNumericValues(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues([1 => 1.0, 2 => 1.0, 3 => 1.0]);
+
+        $stdDev = $gen->getStandardDeviation();
+
+        // StdDev = sqrt(2/3) ≈ 0.816
+        $this->assertEqualsWithDelta(0.816, $stdDev, 0.01);
+    }
+
+    // --- Decay/Boost Tests ---
+
+    public function testEnableSelectionTracking(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 1.0, 'b' => 1.0]);
+        $gen->enableSelectionTracking();
+
+        $gen->generate();
+
+        $counts = $gen->getSelectionCounts();
+        $this->assertNotEmpty($counts);
+        $this->assertSame(1, array_sum($counts));
+    }
+
+    public function testResetSelectionCounts(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 1.0);
+        $gen->enableSelectionTracking();
+
+        $gen->generate();
+        $gen->resetSelectionCounts();
+
+        $this->assertEmpty($gen->getSelectionCounts());
+    }
+
+    public function testDecayWeightReducesWeight(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 10.0);
+
+        $gen->decayWeight('a', 0.5); // Reduce to 50%
+
+        $prob = $gen->getProbability('a');
+        $this->assertEqualsWithDelta(1.0, $prob, 0.001); // Still only value, so 100%
+
+        // Check actual weight
+        $values = iterator_to_array($gen->getWeightedValues());
+        $this->assertEqualsWithDelta(5.0, $values[0]->getWeight(), 0.001);
+    }
+
+    public function testDecayWeightThrowsForInvalidValue(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 1.0);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $gen->decayWeight('nonexistent', 0.5);
+    }
+
+    public function testDecayWeightThrowsForInvalidFactor(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 1.0);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $gen->decayWeight('a', 1.5); // Must be <= 1.0
+    }
+
+    public function testBoostWeightIncreasesWeight(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 10.0);
+
+        $gen->boostWeight('a', 2.0); // Double the weight
+
+        $values = iterator_to_array($gen->getWeightedValues());
+        $this->assertEqualsWithDelta(20.0, $values[0]->getWeight(), 0.001);
+    }
+
+    public function testBoostWeightThrowsForInvalidFactor(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 1.0);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $gen->boostWeight('a', 0.5); // Must be >= 1.0
+    }
+
+    public function testDecayAllWeights(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 10.0, 'b' => 20.0]);
+
+        $gen->decayAllWeights(0.5);
+
+        $values = iterator_to_array($gen->getWeightedValues());
+        $this->assertEqualsWithDelta(5.0, $values[0]->getWeight(), 0.001);
+        $this->assertEqualsWithDelta(10.0, $values[1]->getWeight(), 0.001);
+    }
+
+    public function testBoostAllWeights(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 10.0, 'b' => 20.0]);
+
+        $gen->boostAllWeights(2.0);
+
+        $values = iterator_to_array($gen->getWeightedValues());
+        $this->assertEqualsWithDelta(20.0, $values[0]->getWeight(), 0.001);
+        $this->assertEqualsWithDelta(40.0, $values[1]->getWeight(), 0.001);
+    }
+
+    public function testAutoAdjustWeightsBalancesDistribution(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['frequent' => 1.0, 'rare' => 1.0]);
+        $gen->enableSelectionTracking();
+
+        // Simulate 'frequent' being selected more
+        $ref = new \ReflectionProperty($gen, 'selectionCounts');
+        $ref->setAccessible(true);
+        $ref->setValue($gen, [0 => 10, 1 => 2]); // frequent=10, rare=2
+
+        $gen->autoAdjustWeights(0.5);
+
+        // 'frequent' should be decayed, 'rare' should be boosted
+        $values = iterator_to_array($gen->getWeightedValues());
+        $this->assertLessThan(1.0, $values[0]->getWeight());
+        $this->assertGreaterThan(1.0, $values[1]->getWeight());
+    }
+
+    public function testAutoAdjustWeightsWithNoSelections(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 1.0, 'b' => 2.0]);
+
+        $gen->autoAdjustWeights(); // Should not throw
+
+        // Weights should remain unchanged
+        $values = iterator_to_array($gen->getWeightedValues());
+        $this->assertEqualsWithDelta(1.0, $values[0]->getWeight(), 0.001);
+        $this->assertEqualsWithDelta(2.0, $values[1]->getWeight(), 0.001);
+    }
+
+    // --- Composite Generator Tests ---
+
+    public function testCompositeGeneratorNested(): void
+    {
+        $inner = new WeightedRandomGenerator();
+        $inner->registerValues(['x' => 1.0, 'y' => 1.0]);
+
+        $outer = new WeightedRandomGenerator();
+        $outer->registerValue($inner, 1.0);
+        $outer->registerValue('direct', 1.0);
+
+        $result = $outer->generate();
+
+        // Result should be either from inner generator ('x' or 'y') or 'direct'
+        $this->assertContains($result, ['x', 'y', 'direct']);
+    }
+
+    public function testCompositeGeneratorMultiLevel(): void
+    {
+        $innermost = new WeightedRandomGenerator();
+        $innermost->registerValues([1 => 1.0, 2 => 1.0]);
+
+        $middle = new WeightedRandomGenerator();
+        $middle->registerValue($innermost, 1.0);
+
+        $outer = new WeightedRandomGenerator();
+        $outer->registerValue($middle, 1.0);
+
+        $result = $outer->generate();
+
+        // Should drill down through multiple levels
+        $this->assertContains($result, [1, 2]);
+    }
+
 
 }

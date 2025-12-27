@@ -58,6 +58,11 @@ final class WeightedRandomFacadeTest extends TestCase
         $this->assertNotSame($generator1, $generator2);
     }
 
+    /**
+     *
+     * @return void
+     */
+
     public function testCreateBagGeneratorIsUsable(): void
     {
         $generator = WeightedRandom::createBag();

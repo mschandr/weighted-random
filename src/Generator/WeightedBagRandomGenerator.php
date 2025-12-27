@@ -81,7 +81,27 @@ final class WeightedBagRandomGenerator implements WeightedRandomInterface
             $this->bagIndex = 0;
         }
 
-        return $value instanceof WeightedGroup ? $value->pickOne() : $value;
+        return $this->resolveValue($value);
+    }
+
+    /**
+     * Resolve a value, handling special types (groups and composite generators).
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    private function resolveValue(mixed $value): mixed
+    {
+        if ($value instanceof WeightedGroup) {
+            return $value->pickOne();
+        }
+
+        // Support composite generators (nested generators)
+        if ($value instanceof WeightedRandomInterface) {
+            return $value->generate();
+        }
+
+        return $value;
     }
 
     /**

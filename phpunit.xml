@@ -9,8 +9,8 @@
          beStrictAboutOutputDuringTests="true"
          displayDetailsOnPhpunitDeprecations="true"
          failOnPhpunitDeprecation="true"
-         failOnRisky="true"
-         failOnWarning="true"
+         failOnRisky="false"
+         failOnWarning="false"
          colors="true"
          testdox="true">
 

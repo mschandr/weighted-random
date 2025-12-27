@@ -161,5 +161,20 @@ final class WeightedBagRandomGeneratorTest extends TestCase
 
         $refill->invoke($generator);
     }
+
+    public function testCompositeGeneratorInBag(): void
+    {
+        $inner = new \mschandr\WeightedRandom\Generator\WeightedRandomGenerator();
+        $inner->registerValues(['nested1' => 1.0, 'nested2' => 1.0]);
+
+        $bag = new \mschandr\WeightedRandom\Generator\WeightedBagRandomGenerator();
+        $bag->registerValue($inner, 2.0);
+        $bag->registerValue('direct', 1.0);
+
+        $result = $bag->generate();
+
+        // Result should be either from nested generator or 'direct'
+        $this->assertContains($result, ['nested1', 'nested2', 'direct']);
+    }
 }
 
