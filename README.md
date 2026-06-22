@@ -21,8 +21,26 @@ composer require mschandr/weighted-random
 ## 📚 Documentation
 
 - **[API Reference](API.md)** - Complete API documentation for all classes and methods
+- **[HTTP API & Docker](HTTP_API.md)** - Run the library as a containerized JSON HTTP service
 - **[CHANGELOG](CHANGELOG.md)** - Version history and migration guides
 - **[Contributing Guide](CONTRIBUTING.md)** - Guidelines for contributing to the project
+
+## 🐳 Run as an HTTP API
+
+The library ships with a small, stateless JSON API and a `Dockerfile`.
+
+```bash
+docker compose up --build          # serves on http://localhost:8080
+
+curl -s localhost:8080/health
+
+curl -s localhost:8080/v1/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"generator":"float","values":{"common":7,"uncommon":2.5,"rare":0.5},"count":5}'
+```
+
+See **[HTTP_API.md](HTTP_API.md)** for all endpoints, request/response shapes, and the
+OpenAPI document served at `/v1/openapi.json`.
 
 ## 🚀 Usage
 
