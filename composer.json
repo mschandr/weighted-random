@@ -26,7 +26,8 @@
     },
     "autoload": {
         "psr-4": {
-            "mschandr\\WeightedRandom\\": "src/"
+            "mschandr\\WeightedRandom\\": "src/",
+            "mschandr\\WeightedRandom\\Api\\": "app/"
         }
     },
     "require-dev": {
