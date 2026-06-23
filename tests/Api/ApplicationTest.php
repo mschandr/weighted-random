@@ -117,7 +117,7 @@ final class ApplicationTest extends TestCase
         ]);
 
         $this->assertSame(200, $status);
-        $this->assertSame($payload['results'], array_unique($payload['results']));
+        $this->assertSame(array_unique($payload['results']), $payload['results']);
         $this->assertCount(3, $payload['results']);
     }
 
