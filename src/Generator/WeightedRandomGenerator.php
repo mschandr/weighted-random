@@ -171,7 +171,7 @@ class WeightedRandomGenerator implements WeightedRandomInterface
 
         $returned    = [];
         $attempts    = 0;
-        $maxAttempts = $this->maxAttemptsFactor ?: ($count * 10); // arbitrary safety cap
+        $maxAttempts = $count * ($this->maxAttemptsFactor ?: 10);
 
         while (count($returned) < $count) {
             if ($attempts++ >= $maxAttempts) {
