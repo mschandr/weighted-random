@@ -176,5 +176,17 @@ final class WeightedBagRandomGeneratorTest extends TestCase
         // Result should be either from nested generator or 'direct'
         $this->assertContains($result, ['nested1', 'nested2', 'direct']);
     }
+
+    public function testCompositeGeneratorInBagAlwaysResolvesNestedGenerator(): void
+    {
+        $inner = new \mschandr\WeightedRandom\Generator\WeightedRandomGenerator();
+        $inner->registerValues(['nested1' => 1.0, 'nested2' => 1.0]);
+
+        $bag = new \mschandr\WeightedRandom\Generator\WeightedBagRandomGenerator();
+        $bag->registerValue($inner, 1.0);
+
+        $result = $bag->generate();
+        $this->assertContains($result, ['nested1', 'nested2']);
+    }
 }
 

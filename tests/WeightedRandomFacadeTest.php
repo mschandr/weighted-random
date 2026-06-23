@@ -7,6 +7,7 @@ use mschandr\WeightedRandom\WeightedRandom;
 use mschandr\WeightedRandom\Generator\WeightedRandomGenerator;
 use mschandr\WeightedRandom\Generator\WeightedBagRandomGenerator;
 use mschandr\WeightedRandom\Contract\WeightedRandomInterface;
+use mschandr\WeightedRandom\Value\WeightedValue;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -14,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(WeightedRandom::class)]
 #[UsesClass(WeightedRandomGenerator::class)]
 #[UsesClass(WeightedBagRandomGenerator::class)]
+#[UsesClass(WeightedValue::class)]
 final class WeightedRandomFacadeTest extends TestCase
 {
     public function testCreateFloatReturnsWeightedRandomGenerator(): void
@@ -57,11 +59,6 @@ final class WeightedRandomFacadeTest extends TestCase
 
         $this->assertNotSame($generator1, $generator2);
     }
-
-    /**
-     *
-     * @return void
-     */
 
     public function testCreateBagGeneratorIsUsable(): void
     {

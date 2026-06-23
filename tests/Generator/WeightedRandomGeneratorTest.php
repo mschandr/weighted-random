@@ -615,5 +615,96 @@ final class WeightedRandomGeneratorTest extends TestCase
         $this->assertContains($result, [1, 2]);
     }
 
+    public function testGenerateFallsBackToLastValueWithTrackingEnabled(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('apple', 1.0);
+        $gen->registerValue('banana', 1.0);
+        $gen->enableSelectionTracking();
 
+        $ref = new \ReflectionProperty($gen, 'randomNumberGenerator');
+        $ref->setAccessible(true);
+        $ref->setValue($gen, fn() => PHP_INT_MAX);
+
+        $result = $gen->generate();
+        $this->assertContains($result, ['apple', 'banana']);
+        $this->assertSame(1, array_sum($gen->getSelectionCounts()));
+    }
+
+    public function testGenerateMultipleWithoutDuplicatesSkipsDuplicateThenSucceeds(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 1.0, 'b' => 1.0]);
+
+        // First two RNG calls both return 0 (picks 'a', causing a duplicate on the second)
+        // Third call returns PHP_INT_MAX (falls through to last value 'b')
+        $calls = 0;
+        $ref   = new \ReflectionProperty($gen, 'randomNumberGenerator');
+        $ref->setAccessible(true);
+        $ref->setValue($gen, function () use (&$calls) {
+            return $calls++ < 2 ? 0 : PHP_INT_MAX;
+        });
+
+        $results = iterator_to_array($gen->generateMultipleWithoutDuplicates(2), false);
+        $this->assertSame(['a', 'b'], $results);
+    }
+
+    public function testGetVarianceReturnsNullForNonNumericValues(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['apple' => 1.0, 'banana' => 2.0]);
+
+        $this->assertNull($gen->getVariance());
+    }
+
+    public function testGetVarianceSkipsGroupEntries(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues([1 => 2.0, 2 => 2.0]);
+        $gen->registerGroup(['x', 'y'], 1.0);
+
+        $variance = $gen->getVariance();
+        $this->assertNotNull($variance);
+        $this->assertGreaterThan(0.0, $variance);
+    }
+
+    public function testDecayWeightThrowsWhenResultingWeightReachesZero(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 1.0);
+
+        $ref = new \ReflectionProperty($gen, 'weights');
+        $ref->setAccessible(true);
+        $ref->setValue($gen, [0 => PHP_FLOAT_MIN]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Decayed weight would be <= 0');
+        $gen->decayWeight('a', PHP_FLOAT_MIN);
+    }
+
+    public function testBoostWeightThrowsForUnregisteredValue(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValue('a', 1.0);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Value not registered.');
+        $gen->boostWeight('nonexistent', 2.0);
+    }
+
+    public function testAutoAdjustWeightsEarlyReturnWhenAllCountsAreZero(): void
+    {
+        $gen = new WeightedRandomGenerator();
+        $gen->registerValues(['a' => 1.0, 'b' => 2.0]);
+
+        $ref = new \ReflectionProperty($gen, 'selectionCounts');
+        $ref->setAccessible(true);
+        $ref->setValue($gen, [0 => 0, 1 => 0]);
+
+        $gen->autoAdjustWeights();
+
+        $values = iterator_to_array($gen->getWeightedValues());
+        $this->assertEqualsWithDelta(1.0, $values[0]->getWeight(), 0.001);
+        $this->assertEqualsWithDelta(2.0, $values[1]->getWeight(), 0.001);
+    }
 }
