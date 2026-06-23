@@ -38,7 +38,8 @@
         "phpunit/phpcov": "^11.0"
     },
     "scripts": {
-        "test": "./vendor/bin/phpunit",
+        "test": "./vendor/bin/phpunit --exclude-group docker",
+        "test:docker": "./vendor/bin/phpunit --group docker --no-coverage",
         "coverage": "./vendor/bin/pcov"
     },
     "autoload-dev": {
