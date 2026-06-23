@@ -122,24 +122,20 @@ final class WeightedBagRandomGeneratorTest extends TestCase
 
         // Get access to the internal base generator
         $baseProperty = new \ReflectionProperty($generator, 'base');
-        $baseProperty->setAccessible(true);
         $base = $baseProperty->getValue($generator);
 
         // Overwrite the internal state so getWeightedValues() returns garbage
         $valuesProperty = new \ReflectionProperty($base, 'values');
-        $valuesProperty->setAccessible(true);
         $valuesProperty->setValue($base, ['not-a-weighted-value']);
 
         // Force a refill
         $refillMethod = new \ReflectionMethod($generator, 'refillBag');
-        $refillMethod->setAccessible(true);
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cannot refill bag: no values registered.');
         $refillMethod->invoke($generator);
 
         // Verify the bag remained empty
         $bagProp = new \ReflectionProperty($generator, 'bag');
-        $bagProp->setAccessible(true);
         $this->assertSame([], $bagProp->getValue($generator));
     }
 
@@ -154,7 +150,6 @@ final class WeightedBagRandomGeneratorTest extends TestCase
         $generator = new \mschandr\WeightedRandom\Generator\WeightedBagRandomGenerator($fake);
 
         $refill = new \ReflectionMethod($generator, 'refillBag');
-        $refill->setAccessible(true);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cannot refill bag: no values registered.');
@@ -175,6 +170,18 @@ final class WeightedBagRandomGeneratorTest extends TestCase
 
         // Result should be either from nested generator or 'direct'
         $this->assertContains($result, ['nested1', 'nested2', 'direct']);
+    }
+
+    public function testCompositeGeneratorInBagAlwaysResolvesNestedGenerator(): void
+    {
+        $inner = new \mschandr\WeightedRandom\Generator\WeightedRandomGenerator();
+        $inner->registerValues(['nested1' => 1.0, 'nested2' => 1.0]);
+
+        $bag = new \mschandr\WeightedRandom\Generator\WeightedBagRandomGenerator();
+        $bag->registerValue($inner, 1.0);
+
+        $result = $bag->generate();
+        $this->assertContains($result, ['nested1', 'nested2']);
     }
 }
 

@@ -69,7 +69,6 @@ final class Application
             'version' => self::VERSION,
         ];
     }
-
     /**
      * POST /v1/generate — draw one or more weighted-random samples.
      *
@@ -138,7 +137,7 @@ final class Application
         ];
     }
 
-    /**
+        /**
      * @param array<string,mixed> $body
      */
     private function generatorType(array $body): string
@@ -213,6 +212,7 @@ final class Application
         return $generator;
     }
 
+    
     private function assertNumeric(mixed $value, string $field): void
     {
         if (!is_numeric($value)) {
@@ -329,3 +329,4 @@ final class Application
         ];
     }
 }
+

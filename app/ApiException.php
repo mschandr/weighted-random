@@ -21,3 +21,4 @@ final class ApiException extends \RuntimeException
         return $this->statusCode;
     }
 }
+
