@@ -1,0 +1,12 @@
+.git
+.github
+vendor
+tests
+*.md
+!README.md
+phpunit.xml
+psalm.xml
+.gitignore
+docker-compose.yml
+Dockerfile
+.dockerignore
