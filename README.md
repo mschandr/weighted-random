@@ -23,6 +23,7 @@ composer require mschandr/weighted-random
 
 - **[API Reference](API.md)** — Complete class and method reference
 - **[HTTP API & Docker](HTTP_API.md)** — Run the library as a containerised JSON HTTP service
+- **[Roadmap](ROADMAP.md)** — Planned features and priority order
 - **[CHANGELOG](CHANGELOG.md)** — Version history and migration guides
 - **[Contributing Guide](CONTRIBUTING.md)** — Guidelines for contributing
 
