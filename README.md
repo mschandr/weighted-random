@@ -5,69 +5,81 @@
 [![Latest Stable Version](https://img.shields.io/packagist/v/mschandr/weighted-random.svg)](https://packagist.org/packages/mschandr/weighted-random)
 [![License](https://img.shields.io/github/license/mschandr/weighted-random.svg)](LICENSE)
 
-This library is used to pick random values from a set of registered values, where values with a higher
-weight have a larger probability to be picked.
+A PHP library for picking random values from a weighted set. Values with a higher weight have a greater probability of being selected. Ships with two generator models, distribution introspection, dynamic weight adjustment, composite generators, and a containerised JSON HTTP API.
 
 ---
 
 ## Installation
 
-To install this library using Composer:
-
 ```bash
 composer require mschandr/weighted-random
 ```
 
-## 📚 Documentation
+**Requirements:** PHP 8.2+. CI runs against PHP 8.3, 8.4, and 8.5.
 
-- **[API Reference](API.md)** - Complete API documentation for all classes and methods
-- **[HTTP API & Docker](HTTP_API.md)** - Run the library as a containerized JSON HTTP service
-- **[CHANGELOG](CHANGELOG.md)** - Version history and migration guides
-- **[Contributing Guide](CONTRIBUTING.md)** - Guidelines for contributing to the project
+---
 
-## 🐳 Run as an HTTP API
+## Documentation
 
-The library ships with a small, stateless JSON API and a `Dockerfile`.
+- **[API Reference](API.md)** — Complete class and method reference
+- **[HTTP API & Docker](HTTP_API.md)** — Run the library as a containerised JSON HTTP service
+- **[CHANGELOG](CHANGELOG.md)** — Version history and migration guides
+- **[Contributing Guide](CONTRIBUTING.md)** — Guidelines for contributing
 
-```bash
-docker compose up --build          # serves on http://localhost:8080
+---
 
-curl -s localhost:8080/health
-
-curl -s localhost:8080/v1/generate \
-  -H 'Content-Type: application/json' \
-  -d '{"generator":"float","values":{"common":7,"uncommon":2.5,"rare":0.5},"count":5}'
-```
-
-See **[HTTP_API.md](HTTP_API.md)** for all endpoints, request/response shapes, and the
-OpenAPI document served at `/v1/openapi.json`.
-
-## 🚀 Usage
-
-### Basic Usage
+## Quick Start
 
 ```php
 use mschandr\WeightedRandom\WeightedRandom;
 
-// Create a generator
 $gen = WeightedRandom::createFloat();
 
-// Register values with weights
-$gen->registerValue('common', 7.0)
+$gen->registerValue('common',   7.0)
     ->registerValue('uncommon', 2.5)
-    ->registerValue('rare', 0.5);
+    ->registerValue('rare',     0.5);
 
-// Generate a random value
-$result = $gen->generate();
-
-// Generate multiple values
-$results = $gen->generateMultiple(10);
-
-// Generate unique values (no duplicates)
-$unique = $gen->generateMultipleWithoutDuplicates(3);
+$result  = $gen->generate();           // single draw
+$results = $gen->generateMultiple(10); // 10 draws
 ```
 
-### Batch Registration
+---
+
+## Generator Models
+
+### Float Generator (probabilistic)
+
+The default model. Each call draws independently according to the registered weights.
+
+```php
+$gen = WeightedRandom::createFloat();
+```
+
+### Bag Generator (exact ratios)
+
+An urn/bag model. Values are drawn without replacement until the bag is exhausted, then it refills. Over a complete cycle the ratio of results exactly matches the weights — useful when you need guaranteed distribution rather than statistical approximation.
+
+```php
+$bag = WeightedRandom::createBag();
+$bag->registerValues(['rare' => 1, 'common' => 9]);
+
+$results = $bag->generateMultiple(10);
+// exactly 1 "rare" and 9 "common", then the bag resets
+```
+
+---
+
+## Registering Values
+
+### Single value
+
+```php
+$gen->registerValue('legendary', 0.5);
+```
+
+Registering the same value a second time replaces its weight.
+
+### Batch registration
 
 ```php
 $gen->registerValues([
@@ -77,75 +89,106 @@ $gen->registerValues([
 ]);
 ```
 
-### Groups (Multiple Values, Single Weight)
+### Groups
+
+Assign one weight to a set of values. When the group is selected, one member is chosen uniformly at random.
 
 ```php
-// Register a group of values that share a single weight
 $gen->registerGroup(['bronze', 'silver', 'gold'], 5.0);
-// When the group is selected, one member is chosen uniformly at random
 ```
 
-### Fair Distribution (Bag System)
+---
+
+## Generating Values
 
 ```php
-$bag = WeightedRandom::createBag();
-$bag->registerValues(['rare' => 1, 'common' => 9]);
+// Single draw
+$value = $gen->generate();
 
-// Over 10 draws: exactly 1 rare, 9 common (then bag reshuffles)
-$results = $bag->generateMultiple(10);
+// Multiple draws (may repeat)
+$values = $gen->generateMultiple(10);
+
+// Multiple draws with no duplicates
+$unique = $gen->generateMultipleWithoutDuplicates(3);
 ```
 
-### Distribution Introspection
+`generateMultipleWithoutDuplicates` throws `RuntimeException` if it cannot satisfy the uniqueness constraint within the attempt budget. The default budget is `count × 10` attempts; raise it with:
 
 ```php
-// Get probability distribution
+$gen->setMaxAttemptsFactor(50); // count × 50 attempts
+```
+
+---
+
+## Distribution Introspection
+
+```php
+// Full normalized distribution
 $distribution = $gen->getDistribution();
-// Returns: ['apple' => 0.5, 'banana' => 0.333, 'cherry' => 0.167]
+// ['apple' => 0.5, 'banana' => 0.333, 'cherry' => 0.167]
 
-// Get probability of specific value
+// Probability of a single value
 $prob = $gen->getProbability('apple'); // 0.5
 
-// Calculate Shannon entropy (distribution randomness)
+// Shannon entropy — higher = more evenly spread
 $entropy = $gen->getEntropy();
-
-// For numeric values - statistical analysis
-$gen->registerValues([1 => 1.0, 2 => 2.0, 3 => 1.0]);
-$mean = $gen->getExpectedValue();      // Weighted mean
-$variance = $gen->getVariance();       // Weighted variance
-$stdDev = $gen->getStandardDeviation(); // Standard deviation
 ```
 
-### Decay/Boost (Dynamic Weight Adjustment)
+For generators whose values are all numeric, statistical helpers are available:
 
 ```php
-// Manual weight adjustment
-$gen->decayWeight('common', 0.8);  // Reduce weight to 80%
-$gen->boostWeight('rare', 1.5);    // Increase weight by 50%
+$gen->registerValues([1 => 1.0, 2 => 2.0, 3 => 1.0]);
 
-// Adjust all weights
-$gen->decayAllWeights(0.9);  // Reduce all weights to 90%
-$gen->boostAllWeights(1.2);  // Increase all weights by 20%
+$mean   = $gen->getExpectedValue();     // weighted mean
+$var    = $gen->getVariance();          // weighted variance
+$stdDev = $gen->getStandardDeviation(); // standard deviation
+```
 
-// Automatic adjustment based on selection frequency
+These return `null` when any registered value is non-numeric.
+
+---
+
+## Dynamic Weight Adjustment
+
+### Manual decay and boost
+
+```php
+$gen->decayWeight('common', 0.8);  // multiply weight by 0.8
+$gen->boostWeight('rare',   1.5);  // multiply weight by 1.5
+
+$gen->decayAllWeights(0.9);        // apply to every value
+$gen->boostAllWeights(1.2);
+```
+
+Decay throws `RuntimeException` if the resulting weight reaches zero.
+
+### Selection tracking and auto-adjustment
+
+Enable tracking to record how often each value is drawn, then let the generator balance itself automatically.
+
+```php
 $gen->enableSelectionTracking();
 
-// Generate some values...
 $gen->generateMultiple(100);
 
-// Auto-adjust: frequently selected values get decayed, rare ones get boosted
-$gen->autoAdjustWeights(0.5); // 0.5 = adjustment strength
+// Values picked more often get decayed; under-picked values get boosted.
+// strength: 0.0 = no change, 1.0 = full correction
+$gen->autoAdjustWeights(0.5);
 
-// View selection counts
-$counts = $gen->getSelectionCounts();
+// Inspect counts
+$counts = $gen->getSelectionCounts(); // [0 => 73, 1 => 15, 2 => 12]
 
-// Reset tracking
+// Reset without disabling tracking
 $gen->resetSelectionCounts();
 ```
 
-### Composite Generators (Nested/Hierarchical)
+---
+
+## Composite Generators
+
+Register a generator instance as a value. When that entry is drawn, the nested generator produces the final result. Nesting can go as deep as needed.
 
 ```php
-// Create a hierarchy of generators
 $rareLoot = WeightedRandom::createFloat();
 $rareLoot->registerValues(['legendary_sword' => 1.0, 'magic_ring' => 1.0]);
 
@@ -153,51 +196,177 @@ $commonLoot = WeightedRandom::createFloat();
 $commonLoot->registerValues(['wooden_sword' => 3.0, 'bread' => 2.0]);
 
 $lootBox = WeightedRandom::createFloat();
-$lootBox->registerValue($rareLoot, 0.1);    // 10% chance of rare loot table
-$lootBox->registerValue($commonLoot, 0.9);  // 90% chance of common loot table
+$lootBox->registerValue($rareLoot,   0.1); // 10% → rare table
+$lootBox->registerValue($commonLoot, 0.9); // 90% → common table
 
-$item = $lootBox->generate(); // Draws from nested generator
+$item = $lootBox->generate();
 ```
-
-## Requirements
-
-- PHP 8.1 – 8.4
-- Composer
-  Seeded RNG requires PHP **8.2+**. On PHP 8.1, those tests are automatically skipped.
-
-## 🛠 Development
-```bash
-vendor/bin/phpunit -c phpunit.xml --color
-```
-GitHub Actions CI runs tests against **PHP 8.1, 8.2, 8.3, 8.4.**
-
-## License
-MIT License.
 
 ---
+
+## HTTP API
+
+The library ships with a stateless JSON HTTP API and a production-ready `Dockerfile`. Every request fully describes the weighted set — no server-side state is kept between calls.
+
+### Running with Docker
+
+```bash
+# Docker Compose (recommended)
+docker compose up --build
+# serves on http://localhost:8080
+
+# Or build and run directly
+docker build -t weighted-random-api .
+docker run --rm -p 8080:8080 weighted-random-api
+
+# Override the port
+docker run --rm -p 9090:9090 -e PORT=9090 weighted-random-api
+```
+
+The container:
+- runs as an unprivileged user
+- exposes port `8080` by default (override with `PORT` env var)
+- defines a `/health` `HEALTHCHECK`
+- ships only production dependencies (no dev packages)
+
+### Running without Docker
+
+```bash
+composer install
+php -S 0.0.0.0:8080 -t public public/index.php
+```
+
+### Endpoints
+
+| Method | Path               | Description                               |
+|--------|--------------------|-------------------------------------------|
+| GET    | `/health`          | Liveness/readiness probe                  |
+| POST   | `/v1/generate`     | Draw one or more weighted-random samples  |
+| POST   | `/v1/distribution` | Inspect probabilities and statistics      |
+| GET    | `/v1/openapi.json` | OpenAPI 3.1 description of the API        |
+
+### `POST /v1/generate`
+
+```bash
+curl -s localhost:8080/v1/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "generator": "float",
+    "values": { "common": 7, "uncommon": 2.5, "rare": 0.5 },
+    "count": 5
+  }'
+```
+
+```json
+{
+  "generator": "float",
+  "unique": false,
+  "count": 5,
+  "results": ["common", "rare", "common", "uncommon", "common"]
+}
+```
+
+Supply values via `values` (string-keyed map), `items` (typed list), or `groups` — or mix all three:
+
+```json
+{
+  "values":  { "common": 7 },
+  "items":   [{ "value": 42, "weight": 2 }],
+  "groups":  [{ "members": ["bronze", "silver"], "weight": 1 }],
+  "count":   10,
+  "unique":  false,
+  "generator": "bag"
+}
+```
+
+| Field       | Type    | Default | Notes                                           |
+|-------------|---------|---------|-------------------------------------------------|
+| `generator` | string  | `float` | `float` or `bag`                                |
+| `count`     | integer | `1`     | Number of samples (1 – 100 000)                 |
+| `unique`    | boolean | `false` | No duplicates in the result                     |
+
+### `POST /v1/distribution`
+
+```bash
+curl -s localhost:8080/v1/distribution \
+  -H 'Content-Type: application/json' \
+  -d '{ "values": { "1": 1, "2": 2, "3": 1 } }'
+```
+
+```json
+{
+  "totalValues": 3,
+  "distribution": [
+    { "value": 1, "probability": 0.25 },
+    { "value": 2, "probability": 0.5 },
+    { "value": 3, "probability": 0.25 }
+  ],
+  "entropy": 1.5,
+  "expectedValue": 2.0,
+  "variance": 0.5,
+  "standardDeviation": 0.7071067811865476
+}
+```
+
+### Error responses
+
+All errors return JSON with an `error` key.
+
+| Status | Meaning                                              |
+|--------|------------------------------------------------------|
+| `400`  | Malformed JSON body                                  |
+| `404`  | Unknown route                                        |
+| `422`  | Validation error (bad weight, unknown generator, …)  |
+| `500`  | Unexpected server error                              |
+
+---
+
+## Development
+
+```bash
+composer install
+
+# Unit and integration tests (excludes Docker tests)
+composer test
+
+# Full suite including Docker container tests
+composer test:docker
+```
+
+Tests run against PHP 8.3, 8.4, and 8.5 in CI via GitHub Actions.
+
+---
+
 ## Migration Guide (2.x → 3.x)
 
-WeightedRandom 2.x introduces new features and stricter validation. If you’re upgrading from 1.x, here’s what you need to know:
+### What changed
 
-## What’s New
-- **Float weight support** → Use 0.7 vs 0.3 without scaling up to integers.
-- Seeded RNG with namespace isolation (PHP ≥ 8.2) → Deterministic, reproducible draws.
-- Chaining API for cleaner code.
-- Probability helpers:
-  - `normalizeWeights()` → normalized distribution.
-  - `getProbability($value)` → single-value probability.
-- **Bag System** (v2.2+) → fairness via without-replacement draws.
-- **Stricter validation** → safer, more predictable behavior.
+- **Float weights** — weights can now be any positive float; no need to scale to integers.
+- **Chaining API** — `registerValue` and `registerValues` return `$this`.
+- **Stricter validation** — invalid weights throw immediately rather than silently doing nothing.
+- **Bag generator** — `WeightedRandom::createBag()` for exact-ratio draws.
+- **Distribution introspection** — `getDistribution()`, `getProbability()`, `getEntropy()`, `getExpectedValue()`, `getVariance()`, `getStandardDeviation()`.
+- **Decay / boost** — `decayWeight()`, `boostWeight()`, `decayAllWeights()`, `boostAllWeights()`.
+- **Selection tracking** — `enableSelectionTracking()`, `getSelectionCounts()`, `autoAdjustWeights()`.
+- **Composite generators** — register a generator instance as a value for hierarchical draws.
+- **HTTP API** — run the library as a containerised JSON service.
 
+### Quick diff
 
-# Roadmap
-1. ~~Floats + Normalization~~
-2. ~~Validation Enhancements~~
-3. ~~Chaining API~~
-4. ~~Groups~~
-5. ~~Seeded RNG~~
-6. ~~Distribution Introspection~~
-7. ~~Bag System~~
-8. ~~Decay/Boost~~
-9. ~~Composite Generators~~
-10. ~~Code coverage and proper testing~~ 
+```php
+// 2.x
+$gen->add('rare', 1);
+$gen->add('common', 9);
+$result = $gen->pick();
+
+// 3.x
+$gen = WeightedRandom::createFloat();
+$gen->registerValues(['rare' => 1.0, 'common' => 9.0]);
+$result = $gen->generate();
+```
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
